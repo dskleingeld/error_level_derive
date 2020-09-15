@@ -1,6 +1,6 @@
 //use error_level::ErrorLevel;
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{quote, TokenStreamExt, ToTokens};
 use syn::{self, punctuated::Punctuated, Variant, token::Comma, Attribute};
 
 #[proc_macro_derive(ErrorLevel, attributes(level))]
@@ -34,6 +34,20 @@ impl Level {
             "Error" => Self::Error,
             _ => panic!("options are only: No, Trace, Debug, Info, Warn or Error"),
         }
+    }
+}
+
+impl quote::ToTokens for Level {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let token = match self {
+            Self::No => quote! {None},
+            Self::Trace => quote! {Some(log::Level::Trace)},
+            Self::Debug => quote! {Some(log::Level::Trace)},
+            Self::Info => quote! {Some(log::Level::Trace)},
+            Self::Warn => quote! {Some(log::Level::Trace)},
+            Self::Error => quote! {Some(log::Level::Trace)},
+        };
+        tokens.extend(token);
     }
 }
 
@@ -91,15 +105,26 @@ fn impl_error_level_macro(ast: &syn::DeriveInput) -> TokenStream {
     let variants = &unwrap_enum(data).variants;
     //save list of variants with a level attribute
     let marked = marked_variants(variants);
-    
+    let levels = marked.iter().map(|m| &m.level);
+    let idents = marked.iter().map(|m| &m.variant_id);
     //for idents without attr call the error_level function
     //if error_level is undefined for that type the user will
     //get an error
 
+    let test_level = Level::Trace;
+    let test_ident = quote::format_ident!("test{}",5u32);
+    let test_iter = vec![Level::Trace, Level::Trace];
     let gen = quote! {
         impl ErrorLevel for #name {
             fn error_level(&self) -> Option<log::Level> {
+                let #test_ident = 5.0;
+                let a = #test_level;
+                let #(#test_iter)* = 5.0;
                 //for each attr add a case that makes the report
+                // match &self {
+                //      #(idents)*
+                // }
+
                 println!("Hello, Macro! My name is {}!", stringify!(#name));
                 Some(log::Level::Warn)
             }

@@ -12,6 +12,7 @@ proc-macro = true
 log = "0.4"
 syn = { version = "1.0", features = ["derive","extra-traits"] }
 quote = "1.0"
+proc-macro2 = "1.0"
 error_level = { path = "../error_level" }
 
 [dev-dependencies]
