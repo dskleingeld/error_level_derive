@@ -1,4 +1,5 @@
 use error_level::ErrorLevel;
+
 use error_level_derive::ErrorLevel;
 use log::Level;
 use simplelog::{LevelFilter, Config, SimpleLogger};

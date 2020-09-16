@@ -113,13 +113,14 @@ fn impl_error_level_macro(ast: &syn::DeriveInput) -> TokenStream {
 
     let test_level = Level::Trace;
     let test_ident = quote::format_ident!("test{}",5u32);
-    let test_iter = vec![Level::Trace, Level::Trace];
+    let test_vec = vec![quote!{a}, quote!{b}];
+    let test_vec_val = vec![quote!{5}, quote! {6}];
     let gen = quote! {
         impl ErrorLevel for #name {
             fn error_level(&self) -> Option<log::Level> {
                 let #test_ident = 5.0;
                 let a = #test_level;
-                let #(#test_iter)* = 5.0;
+                #(let #test_vec = #test_vec_val;)*
                 //for each attr add a case that makes the report
                 // match &self {
                 //      #(idents)*
