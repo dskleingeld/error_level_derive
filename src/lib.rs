@@ -1,7 +1,7 @@
 //use error_level::ErrorLevel;
 use proc_macro::TokenStream;
 use quote::{quote, TokenStreamExt, ToTokens};
-use syn::{self, punctuated::Punctuated, Variant, token::Comma, Attribute};
+use syn::{self, punctuated::Punctuated, Variant, token::Comma, Attribute, Fields};
 
 #[proc_macro_derive(ErrorLevel, attributes(level))]
 pub fn log_level_derive(input: TokenStream) -> TokenStream {
@@ -57,14 +57,15 @@ struct Marked {
     variant_id: syn::Ident,
 }
 
-fn log_level(v: &Variant) -> Option<Level> { 
-    fn has_level_path(m: &syn::MetaList) -> bool {
-        if let Some(ident) = m.path.get_ident() {
-            ident == "level"
-        } else {
-            false
-        }
+fn has_level_path(m: &syn::MetaList) -> bool {
+    if let Some(ident) = m.path.get_ident() {
+        ident == "level"
+    } else {
+        false
     }
+}
+
+fn log_level(v: &Variant) -> Option<Level> { 
     fn unwrap_meta(n: &syn::NestedMeta) -> &syn::Meta {
         if let syn::NestedMeta::Meta(m) = n {
             return m;
@@ -99,35 +100,75 @@ fn marked_variants(variants: &Punctuated<Variant, Comma>) -> Vec<Marked> {
     marked
 }
 
+#[derive(Debug)]
+struct WithInnError {
+    inner_id: syn::Ident,
+    variant_id: syn::Ident,
+}
+
+fn inner_err(v: &Variant) -> Option<syn::Ident> { 
+    // fn unwrap_meta(n: &syn::NestedMeta) -> &syn::Meta {
+    //     if let syn::NestedMeta::Meta(m) = n {
+    //         return m;
+    //     }
+    //     panic!("nested argument list should not be a rust literal but a structured meta item");
+    // }
+
+    //filter out anything with a level attribute
+    for a in &v.attrs {
+        let m = a.parse_meta().unwrap();
+        if let syn::Meta::List(list) = m { 
+            if has_level_path(&list){return None;}
+        }
+    }
+
+    if let Fields::Unnamed(syn::FieldsUnnamed {ref unnamed, ..}) = v.fields {
+        let ty = &unnamed.first()?.ty;
+        if let syn::Type::Path(syn::TypePath {ref path, ..}) = ty {
+            let ident = path.get_ident()?;
+            return Some(ident.clone());
+        }
+    }
+    None
+}
+
+fn with_inner_error(variants: &Punctuated<Variant, Comma>) -> Vec<WithInnError> {
+    let mut w_inn_err = Vec::new();
+    for v in variants { 
+        if let Some(inner_id) = inner_err(v){
+            let variant_id = v.ident.clone();
+            w_inn_err.push(WithInnError {
+                inner_id,
+                variant_id
+            });
+        }
+    }
+    dbg!(&w_inn_err);
+    w_inn_err
+}
+
 fn impl_error_level_macro(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let data = &ast.data;
     let variants = &unwrap_enum(data).variants;
     //save list of variants with a level attribute
     let marked = marked_variants(variants);
-    let levels = marked.iter().map(|m| &m.level);
-    let idents = marked.iter().map(|m| &m.variant_id);
+    let level_with_attr = marked.iter().map(|m| &m.level);
+    let ident_with_attr = marked.iter().map(|m| &m.variant_id);
+
     //for idents without attr call the error_level function
     //if error_level is undefined for that type the user will
-    //get an error
+    let w_inner_err = with_inner_error(variants);
+    //let ident_w_inner_err = unimplemented!();
 
-    let test_level = Level::Trace;
-    let test_ident = quote::format_ident!("test{}",5u32);
-    let test_vec = vec![quote!{a}, quote!{b}];
-    let test_vec_val = vec![quote!{5}, quote! {6}];
     let gen = quote! {
         impl ErrorLevel for #name {
             fn error_level(&self) -> Option<log::Level> {
-                let #test_ident = 5.0;
-                let a = #test_level;
-                #(let #test_vec = #test_vec_val;)*
-                //for each attr add a case that makes the report
-                // match &self {
-                //      #(idents)*
-                // }
-
-                println!("Hello, Macro! My name is {}!", stringify!(#name));
-                Some(log::Level::Warn)
+                match self {
+                    #(#name::#ident_with_attr => #level_with_attr,)*
+                    //#(#name::#ident_w_inner_err(inn_err) => inn_err.error_level(),)*
+                    _ => todo!(),
+                }
             }
         }
     };
