@@ -59,7 +59,7 @@ struct Marked {
 
 fn has_level_path(m: &syn::MetaList) -> bool {
     if let Some(ident) = m.path.get_ident() {
-        ident == "level"
+        ident == "report"
     } else {
         false
     }
@@ -125,20 +125,6 @@ fn has_inner(v: &Variant) -> Option<&syn::Type> {
         None
     }
 }
-
-// fn with_inner_error(variants: &Punctuated<Variant, Comma>) -> Vec<WithInnError> {
-//     let mut w_inn_err = Vec::new();
-//     for v in variants { 
-//         if let Some(inner_id) = could_have_inner_err(v){
-//             let variant_id = v.ident.clone();
-//             w_inn_err.push(WithInnError {
-//                 inner_id,
-//                 variant_id
-//             });
-//         }
-//     }
-//     w_inn_err
-// }
 
 fn extract_variants(variants: &Punctuated<Variant, Comma>) -> (Vec<Marked>, Vec<WithInnError>, Vec<proc_macro2::TokenStream>) {
     let mut marked = Vec::new();
