@@ -12,6 +12,12 @@ pub enum OuterError {
     // Error1,
 }
 
+#[derive(Debug)]
+enum ErrorWithoutImpl {
+    Error0,
+    Error1,
+}
+
 #[test]
 fn it_works() {
     #[derive(Debug, ErrorLevel)]
@@ -35,6 +41,25 @@ fn it_works() {
     assert_eq!(a.error_level(), Some(Level::Warn));
     assert_eq!(b.error_level(), Some(Level::Warn));
     b.log_error();
+}
+
+#[test]
+fn does_not_implement_ErrorLevel() {
+    
+
+    #[derive(Debug, ErrorLevel)]
+    pub enum CustomError {
+        #[level(Warn)]
+        ErrorA,
+        #[level(Info)]
+        ErrorB,
+        #[level(No)]
+        ErrorC,
+        ErrorD(ErrorWithoutImpl),
+    }
+
+    let a = CustomError::ErrorA;
+    let d = CustomError::ErrorD(ErrorWithoutImpl::Error1);
 }
 
 #[test]

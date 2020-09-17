@@ -1,7 +1,7 @@
 //use error_level::ErrorLevel;
 use proc_macro::TokenStream;
-use quote::{quote, quote_spanned, ToTokens};
-use syn::{self, spanned::Spanned, punctuated::Punctuated, Variant, token::Comma, Attribute, Fields};
+use quote::{quote, quote_spanned};
+use syn::{self, spanned::Spanned, punctuated::Punctuated, Variant, token::Comma, Fields};
 
 #[proc_macro_derive(ErrorLevel, attributes(level))]
 pub fn log_level_derive(input: TokenStream) -> TokenStream {
@@ -84,20 +84,6 @@ fn with_log_level(v: &Variant) -> Option<Level> {
         }
     }
     None
-}
-
-fn marked_variants(variants: &Punctuated<Variant, Comma>) -> Vec<Marked> {
-    let mut marked = Vec::new();
-    for v in variants { 
-        if let Some(level) = with_log_level(v){
-            let variant_id = v.ident.clone();
-            marked.push(Marked {
-                level,
-                variant_id
-            });
-        }
-    }
-    marked
 }
 
 #[derive(Debug)]
@@ -204,16 +190,23 @@ fn impl_error_level_macro(ast: &syn::DeriveInput) -> TokenStream {
 
     //for idents without attr call the error_level function
     //if error_level is undefined for that type the user will
-    let ident_no_attr = w_inner.iter().map(|m| &m.variant_id);
+    let spanned = w_inner.iter().map(|m| {
+        let ident = &m.variant_id;
+        let span = m.inner_id.span();
+        quote_spanned! {
+            span =>
+            #name::#ident(inn_err) => inn_err.error_level(),
+        }
+    });
 
     let gen = quote! {
         impl ErrorLevel for #name {
             fn error_level(&self) -> Option<log::Level> {
+                #(#errs)*;
                 match self {
                     #(#name::#ident_with_attr => #level_with_attr,)*
-                    #(#name::#ident_no_attr(inn_err) => inn_err.error_level(),)*
+                    #(#spanned)*
                 }
-                #(#errs)*;
             }
         }
     };
