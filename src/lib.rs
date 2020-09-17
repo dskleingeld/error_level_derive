@@ -42,10 +42,10 @@ impl quote::ToTokens for Level {
         let token = match self {
             Self::No => quote! {None},
             Self::Trace => quote! {Some(log::Level::Trace)},
-            Self::Debug => quote! {Some(log::Level::Trace)},
-            Self::Info => quote! {Some(log::Level::Trace)},
-            Self::Warn => quote! {Some(log::Level::Trace)},
-            Self::Error => quote! {Some(log::Level::Trace)},
+            Self::Debug => quote! {Some(log::Level::Debug)},
+            Self::Info => quote! {Some(log::Level::Info)},
+            Self::Warn => quote! {Some(log::Level::Warn)},
+            Self::Error => quote! {Some(log::Level::Error)},
         };
         tokens.extend(token);
     }
