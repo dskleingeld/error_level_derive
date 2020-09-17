@@ -1,9 +1,8 @@
-//use error_level::ErrorLevel;
 use proc_macro::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::{self, spanned::Spanned, punctuated::Punctuated, Variant, token::Comma, Fields};
 
-#[proc_macro_derive(ErrorLevel, attributes(level))]
+#[proc_macro_derive(ErrorLevel, attributes(report))]
 pub fn log_level_derive(input: TokenStream) -> TokenStream {
     // Construct a representation of Rust code as a syntax tree
     // that we can manipulate
@@ -72,10 +71,10 @@ fn with_log_level(v: &Variant) -> Option<Level> {
         }
         panic!("nested argument list should not be a rust literal but a structured meta item");
     }
-
+   
     for a in &v.attrs {
         let m = a.parse_meta().unwrap();
-        if let syn::Meta::List(list) = m { 
+        if let syn::Meta::List(list) = m {
             if !has_level_path(&list){continue;}
             let nested = list.nested.first().unwrap();
             let meta = unwrap_meta(&nested);
@@ -88,25 +87,32 @@ fn with_log_level(v: &Variant) -> Option<Level> {
 
 #[derive(Debug)]
 struct WithInnError {
-    inner_id: syn::Ident,
+    inner_span: proc_macro2::Span,
     variant_id: syn::Ident,
 }
 
-enum Valid {
-    Yes(syn::Ident),
-    No(proc_macro2::Span),
-}
+fn is_valid_inner(ty: &syn::Type) -> Result<proc_macro2::Span, proc_macro2::Span> {
+    // handle multi segment (::) paths
+    fn handle_path(p: &syn::TypePath) -> proc_macro2::Span {
+        let p = &p.path;
+        if p.segments.len() > 1 {
+            let span_begin = p.segments.first().unwrap().span();
+            let span_end = p.segments.last().unwrap().span();
+            span_begin.join(span_end).unwrap_or(span_end)
+        } else {
+            p.get_ident().span()
+        }
+    }
 
-fn is_valid_inner(ty: &syn::Type) -> Valid {
     match ty {
-        syn::Type::Path(p) => Valid::Yes(p.path.get_ident().unwrap().clone()),
+        syn::Type::Path(p) => Ok(handle_path(p)),
         syn::Type::Reference(r) =>
             if let syn::Type::Path(p) = &*r.elem {
-                Valid::Yes(p.path.get_ident().unwrap().clone())
+                Ok(handle_path(p))
             } else {
-                Valid::No(r.span())
+                Err(r.span())
             },
-        _ => Valid::No(ty.span())
+        _ => Err(ty.span())
     }
 }
 
@@ -130,7 +136,6 @@ fn extract_variants(variants: &Punctuated<Variant, Comma>) -> (Vec<Marked>, Vec<
     let mut marked = Vec::new();
     let mut w_inner = Vec::new();
     let mut errs = Vec::new();
-
     for v in variants {
         if let Some(level) = with_log_level(v){
             let variant_id = v.ident.clone();
@@ -140,24 +145,24 @@ fn extract_variants(variants: &Punctuated<Variant, Comma>) -> (Vec<Marked>, Vec<
             });
         } else if let Some(inner) = has_inner(v){
             match is_valid_inner(inner) {
-                Valid::Yes(inner_id) => {    
+                Ok(inner_span) => {    
                     let variant_id = v.ident.clone();
                     w_inner.push(WithInnError {
-                        inner_id,
+                        inner_span,
                         variant_id
                     });
                 },
-                Valid::No(span) => {
+                Err(span) => {
                     errs.push(quote_spanned! {
                         span =>
-                        compile_error!("Need 'Level' attribute, variant content can not get an 'ErrorLevel' trait implementation");
+                        compile_error!("Needs 'report' attribute, variant content can not have an 'ErrorLevel' trait implementation");
                     });
                 },
             }
         } else {
             errs.push(quote_spanned! {
                 v.span() =>
-                compile_error!("Need 'Level' attribute");
+                compile_error!("Needs 'report' attribute");
             })
         }
     }
@@ -178,7 +183,7 @@ fn impl_error_level_macro(ast: &syn::DeriveInput) -> TokenStream {
     //if error_level is undefined for that type the user will
     let spanned = w_inner.iter().map(|m| {
         let ident = &m.variant_id;
-        let span = m.inner_id.span();
+        let span = m.inner_span;
         quote_spanned! {
             span =>
             #name::#ident(inn_err) => inn_err.error_level(),
