@@ -1,7 +1,6 @@
 use error_level::ErrorLevel;
 use log::Level;
 use simplelog::{LevelFilter, Config, SimpleLogger};
-use thiserror::Error;
 
 #[allow(dead_code)]
 #[derive(Debug, ErrorLevel)]
@@ -77,35 +76,23 @@ fn with_path_seperator() {
 #[test]
 fn with_inner_attribute() {
 
-    #[derive(Debug)]
-    enum InnerE {
+    #[derive(thiserror::Error, Debug, ErrorLevel)]
+    pub enum InnerE {
+        #[report(no)]
+        #[error("by")]
         Error,
     };
 
+    const CONSTANT_STR: &str = "test string";
     #[derive(thiserror::Error, Debug, ErrorLevel)]
     pub enum CustomError {
-        #[report(warn)]
-        #[error("test")]
-        ErrorA,
-        #[report(info)]
-        #[error("test")]
-        ErrorB,
         #[report(no)]
-        #[error("test")]
-        ErrorC,
-        #[error("test")]
+        #[error("hi, {}", CONSTANT_STR)]
         ErrorD(#[from] InnerE),
     }
 
-    let a = CustomError::ErrorA;
-    let b = CustomError::ErrorB;
-    let c = CustomError::ErrorC;
     let d = CustomError::from(InnerE::Error);
 
-    assert_eq!(a.error_level(), Some(Level::Warn));
-    assert_eq!(b.error_level(), Some(Level::Info));
-    assert_eq!(c.error_level(), None);
-    assert_eq!(d.error_level(), Some(Level::Info));
-    b.log_error();
+    assert_eq!(d.error_level(), None);
 }
 
